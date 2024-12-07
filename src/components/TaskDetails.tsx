@@ -8,11 +8,13 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Todo } from '../types';
+import { Feather } from '@expo/vector-icons';
 
 interface TaskDetailsProps {
   todo: Todo;
   visible: boolean;
   onClose: () => void;
+  onUpdate: (todo: Todo) => void;
 }
 
 export const TaskDetails = ({ todo, visible, onClose }: TaskDetailsProps) => {
@@ -41,7 +43,7 @@ export const TaskDetails = ({ todo, visible, onClose }: TaskDetailsProps) => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Task Details</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>Done</Text>
+            <Feather name="x" size={22} color="#000000" />
           </TouchableOpacity>
         </View>
 

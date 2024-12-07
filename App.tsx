@@ -1,5 +1,5 @@
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState, useRef } from 'react';
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,12 +13,15 @@ import {
   Animated,
   PanResponder,
   Dimensions,
-} from 'react-native';
-import { Todo } from './src/types';
-import { loadTodos, saveTodos } from './src/storage';
-import { TaskDetails } from './src/components/TaskDetails';
+} from "react-native";
+import { Todo } from "./src/types";
+import { loadTodos, saveTodos } from "./src/storage";
+import { TaskDetails } from "./src/components/TaskDetails";
+import { Calendar } from "./src/components/Calendar";
+import { EmptyState } from "./src/components/EmptyState";
+import { Feather } from "@expo/vector-icons";
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = -80;
 
 interface TodoItemProps {
@@ -30,21 +33,21 @@ interface TodoItemProps {
 
 const TodoItem = ({ item, onToggle, onDelete, showDetails }: TodoItemProps) => {
   const pan = useRef(new Animated.Value(0)).current;
-  
+
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: () => true,
     onPanResponderMove: (_, gestureState) => {
-      if (gestureState.dx < 0) {  // Only allow left swipe
+      if (gestureState.dx < 0) {
+        // Only allow left swipe
         pan.setValue(gestureState.dx);
       }
     },
     onPanResponderRelease: (_, gestureState) => {
       if (gestureState.dx < SWIPE_THRESHOLD) {
-        Animated.spring(pan, {
-          toValue: SWIPE_THRESHOLD,
-          useNativeDriver: false,
-        }).start();
+        // Trigger delete immediately
+        handleDelete();
       } else {
+        // Reset position
         Animated.spring(pan, {
           toValue: 0,
           useNativeDriver: false,
@@ -53,17 +56,10 @@ const TodoItem = ({ item, onToggle, onDelete, showDetails }: TodoItemProps) => {
     },
   });
 
-  const reset = () => {
-    Animated.spring(pan, {
-      toValue: 0,
-      useNativeDriver: false,
-    }).start();
-  };
-
   const handleDelete = () => {
     Animated.timing(pan, {
       toValue: -SCREEN_WIDTH,
-      duration: 250,
+      duration: 200,
       useNativeDriver: false,
     }).start(() => {
       onDelete(item.id);
@@ -72,17 +68,16 @@ const TodoItem = ({ item, onToggle, onDelete, showDetails }: TodoItemProps) => {
 
   return (
     <View style={styles.todoItemContainer}>
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={handleDelete}
-      >
-        <Text style={styles.deleteButtonText}>Delete</Text>
-      </TouchableOpacity>
+      <View style={styles.deleteBackground}>
+        <Text style={styles.deleteText}>Delete</Text>
+      </View>
 
       <Animated.View
         style={[
           styles.todoItemContent,
-          { transform: [{ translateX: pan }] }
+          {
+            transform: [{ translateX: pan }],
+          },
         ]}
         {...panResponder.panHandlers}
       >
@@ -96,12 +91,16 @@ const TodoItem = ({ item, onToggle, onDelete, showDetails }: TodoItemProps) => {
           >
             {item.completed && <Text style={styles.checkmark}>✓</Text>}
           </TouchableOpacity>
-          <Text style={[
-            styles.todoText,
-            item.completed && styles.completedText
-          ]}>
-            {item.text}
-          </Text>
+          <View style={styles.todoTextContainer}>
+            <Text
+              style={[
+                styles.todoText,
+                item.completed && styles.completedText,
+              ]}
+            >
+              {item.text}
+            </Text>
+          </View>
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -110,9 +109,11 @@ const TodoItem = ({ item, onToggle, onDelete, showDetails }: TodoItemProps) => {
 
 export default function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [newTodo, setNewTodo] = useState('');
+  const [newTodo, setNewTodo] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [hideCompleted, setHideCompleted] = useState(false);
 
   useEffect(() => {
     loadStoredTodos();
@@ -135,13 +136,13 @@ export default function App() {
       const updatedTodos = [...todos, todo];
       setTodos(updatedTodos);
       await saveTodos(updatedTodos);
-      setNewTodo('');
+      setNewTodo("");
       Keyboard.dismiss();
     }
   };
 
   const toggleTodo = async (id: string) => {
-    const updatedTodos = todos.map(todo => {
+    const updatedTodos = todos.map((todo) => {
       if (todo.id === id) {
         const now = Date.now();
         const duration = todo.completed ? undefined : now - todo.createdAt;
@@ -159,13 +160,28 @@ export default function App() {
   };
 
   const deleteTodo = async (id: string) => {
-    const updatedTodos = todos.filter(todo => todo.id !== id);
+    const updatedTodos = todos.filter((todo) => todo.id !== id);
     setTodos(updatedTodos);
     await saveTodos(updatedTodos);
   };
 
   const closeDetails = () => {
     setSelectedTodo(null);
+  };
+
+  const updateTodo = async (updatedTodo: Todo) => {
+    const updatedTodos = todos.map((todo) =>
+      todo.id === updatedTodo.id ? updatedTodo : todo
+    );
+    setTodos(updatedTodos);
+    await saveTodos(updatedTodos);
+  };
+
+  const handleShowDetails = (todo: Todo) => {
+    setShowCalendar(false);
+    setTimeout(() => {
+      setSelectedTodo(todo);
+    }, 500);
   };
 
   if (loading) {
@@ -179,8 +195,28 @@ export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      <Text style={styles.title}>Tasks</Text>
-      
+      <View style={styles.header}>
+        <Text style={styles.title}>Tasks</Text>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => setHideCompleted(!hideCompleted)}
+          >
+            <Feather
+              name={hideCompleted ? "eye" : "eye-off"}
+              size={22}
+              color="#000000"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => setShowCalendar(true)}
+          >
+            <Feather name="calendar" size={22} color="#000000" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
@@ -191,33 +227,48 @@ export default function App() {
           onSubmitEditing={addTodo}
           returnKeyType="done"
         />
-        <TouchableOpacity 
-          style={[styles.addButton, newTodo.trim() ? styles.addButtonActive : null]} 
+        <TouchableOpacity
+          style={[
+            styles.addButton,
+            newTodo.trim() ? styles.addButtonActive : null,
+          ]}
           onPress={addTodo}
           disabled={!newTodo.trim()}
         >
-          <Text style={[
-            styles.addButtonText,
-            newTodo.trim() ? styles.addButtonTextActive : null
-          ]}>
-            Add
-          </Text>
+          <Feather
+            name="plus"
+            size={22}
+            color={newTodo.trim() ? "#FFFFFF" : "#999999"}
+          />
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        style={styles.list}
-        data={todos.sort((a, b) => b.createdAt - a.createdAt)}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <TodoItem
-            item={item}
-            onToggle={toggleTodo}
-            onDelete={deleteTodo}
-            showDetails={() => setSelectedTodo(item)}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
+      {todos.length > 0 ? (
+        <FlatList
+          style={styles.list}
+          data={todos
+            .filter((todo) => !hideCompleted || !todo.completed)
+            .sort((a, b) => b.createdAt - a.createdAt)}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TodoItem
+              item={item}
+              onToggle={toggleTodo}
+              onDelete={deleteTodo}
+              showDetails={() => setSelectedTodo(item)}
+            />
+          )}
+          contentContainerStyle={styles.listContent}
+        />
+      ) : (
+        <EmptyState />
+      )}
+
+      <Calendar
+        todos={todos}
+        visible={showCalendar}
+        onClose={() => setShowCalendar(false)}
+        onShowDetails={handleShowDetails}
       />
 
       {selectedTodo && (
@@ -225,6 +276,7 @@ export default function App() {
           todo={selectedTodo}
           visible={true}
           onClose={closeDetails}
+          onUpdate={updateTodo}
         />
       )}
     </View>
@@ -234,18 +286,35 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    backgroundColor: "#FFFFFF",
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
   },
-  title: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: '#000000',
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     marginBottom: 24,
   },
+  headerButtons: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  headerButton: {
+    padding: 8,
+  },
+  headerButtonText: {
+    color: "#007AFF",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: "#000000",
+  },
   inputContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
     marginBottom: 32,
     gap: 12,
@@ -254,29 +323,21 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 40,
     fontSize: 17,
-    color: '#000000',
+    color: "#000000",
     borderBottomWidth: 2,
-    borderBottomColor: '#EEEEEE',
+    borderBottomColor: "#EEEEEE",
     padding: 0,
   },
   addButton: {
-    paddingHorizontal: 16,
+    width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+    borderRadius: 20,
   },
   addButtonActive: {
-    backgroundColor: '#000000',
-  },
-  addButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#999999',
-  },
-  addButtonTextActive: {
-    color: '#FFFFFF',
+    backgroundColor: "#000000",
   },
   list: {
     flex: 1,
@@ -286,61 +347,72 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   todoItemContainer: {
-    position: 'relative',
+    position: "relative",
+    marginBottom: 1,
   },
-  todoItemContent: {
-    backgroundColor: '#FFFFFF',
-  },
-  deleteButton: {
-    position: 'absolute',
+  deleteBackground: {
+    position: "absolute",
     right: 0,
     top: 0,
     bottom: 0,
-    width: Math.abs(SWIPE_THRESHOLD),
-    backgroundColor: '#FF3B30',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 75,
+    backgroundColor: "#FF3B30",
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingRight: 16,
   },
-  deleteButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+  deleteText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  todoItemContent: {
+    backgroundColor: "#FFFFFF",
   },
   todoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F5F5',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#EEEEEE',
+    borderColor: "#EEEEEE",
     marginRight: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   checked: {
-    backgroundColor: '#000000',
-    borderColor: '#000000',
+    backgroundColor: "#000000",
+    borderColor: "#000000",
   },
   checkmark: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   todoText: {
     fontSize: 17,
-    color: '#000000',
+    color: "#000000",
     flex: 1,
-    fontWeight: '400',
+    fontWeight: "400",
   },
   completedText: {
-    color: '#999999',
+    color: "#999999",
+  },
+  calendarButton: {
+    padding: 8,
+  },
+  calendarButtonText: {
+    color: "#007AFF",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  todoTextContainer: {
+    flex: 1,
   },
 });

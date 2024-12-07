@@ -4,5 +4,5 @@ export interface Todo {
   completed: boolean;
   createdAt: number;
   completedAt?: number;
-  duration?: number; // Duration in milliseconds
+  duration?: number;
 } 

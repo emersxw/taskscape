@@ -13,8 +13,17 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.emersxw.TaskScape"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.emersxw.TaskScape",
+      "usesPushNotifications": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "target": {
+        "devices": [
+          "iphone"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
