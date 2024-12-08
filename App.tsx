@@ -32,77 +32,35 @@ interface TodoItemProps {
 }
 
 const TodoItem = ({ item, onToggle, onDelete, showDetails }: TodoItemProps) => {
-  const pan = useRef(new Animated.Value(0)).current;
-
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderMove: (_, gestureState) => {
-      if (gestureState.dx < 0) {
-        // Only allow left swipe
-        pan.setValue(gestureState.dx);
-      }
-    },
-    onPanResponderRelease: (_, gestureState) => {
-      if (gestureState.dx < SWIPE_THRESHOLD) {
-        // Trigger delete immediately
-        handleDelete();
-      } else {
-        // Reset position
-        Animated.spring(pan, {
-          toValue: 0,
-          useNativeDriver: false,
-        }).start();
-      }
-    },
-  });
-
-  const handleDelete = () => {
-    Animated.timing(pan, {
-      toValue: -SCREEN_WIDTH,
-      duration: 200,
-      useNativeDriver: false,
-    }).start(() => {
-      onDelete(item.id);
-    });
-  };
-
   return (
     <View style={styles.todoItemContainer}>
-      <View style={styles.deleteBackground}>
-        <Text style={styles.deleteText}>Delete</Text>
-      </View>
-
-      <Animated.View
-        style={[
-          styles.todoItemContent,
-          {
-            transform: [{ translateX: pan }],
-          },
-        ]}
-        {...panResponder.panHandlers}
+      <TouchableOpacity
+        style={styles.todoItem}
+        onPress={() => showDetails(item)}
       >
         <TouchableOpacity
-          style={styles.todoItem}
-          onPress={() => showDetails(item)}
+          style={[styles.checkbox, item.completed && styles.checked]}
+          onPress={() => onToggle(item.id)}
         >
-          <TouchableOpacity
-            style={[styles.checkbox, item.completed && styles.checked]}
-            onPress={() => onToggle(item.id)}
-          >
-            {item.completed && <Text style={styles.checkmark}>✓</Text>}
-          </TouchableOpacity>
-          <View style={styles.todoTextContainer}>
-            <Text
-              style={[
-                styles.todoText,
-                item.completed && styles.completedText,
-              ]}
-            >
-              {item.text}
-            </Text>
-          </View>
+          {item.completed && <Text style={styles.checkmark}>✓</Text>}
         </TouchableOpacity>
-      </Animated.View>
+        <View style={styles.todoTextContainer}>
+          <Text
+            style={[
+              styles.todoText,
+              item.completed && styles.completedText,
+            ]}
+          >
+            {item.text}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => onDelete(item.id)}
+        >
+          <Feather name="trash-2" size={20} color="#FF3B30" />
+        </TouchableOpacity>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -350,25 +308,6 @@ const styles = StyleSheet.create({
     position: "relative",
     marginBottom: 1,
   },
-  deleteBackground: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 75,
-    backgroundColor: "#FF3B30",
-    justifyContent: "center",
-    alignItems: "flex-end",
-    paddingRight: 16,
-  },
-  deleteText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  todoItemContent: {
-    backgroundColor: "#FFFFFF",
-  },
   todoItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -414,5 +353,9 @@ const styles = StyleSheet.create({
   },
   todoTextContainer: {
     flex: 1,
+  },
+  deleteButton: {
+    padding: 8,
+    marginLeft: 8,
   },
 });
